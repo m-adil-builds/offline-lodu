@@ -103,7 +103,12 @@
     const ENTRY_ROT = [0, 90, 180, 270];   // travel direction out of each start cell
     PATH.forEach(([r, c], i) => {
       const cell = div("cell");
-      if (E.SAFE.has(i)) cell.classList.add("safe");
+      if (E.SAFE.has(i)) {
+        cell.classList.add("safe");
+        // the 4 star cells (start + 8) get a bright color-matched highlight
+        const starSeat = E.OFFSET.indexOf((i - 8 + 52) % 52);
+        if (starSeat !== -1) cell.classList.add("star", "st-" + CSSC[starSeat]);
+      }
       const startSeat = E.OFFSET.indexOf(i);
       if (startSeat !== -1) {
         cell.classList.add("c-" + CSSC[startSeat], "entry");
