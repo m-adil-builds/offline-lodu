@@ -40,11 +40,25 @@
         enemy with an available dice value and the turn ends without that kill,
         that token is closed (sent back to its yard).</span>
       </label>
+      <label class="rule">
+        <input type="checkbox" id="opt-rule3" checked>
+        <span class="toggle"></span>
+        <span class="rule-text"><b>Kill to enter home</b> — a player cannot move
+        any token into their home column until they've killed at least one enemy
+        token. If all four of their tokens get closed, the permission resets —
+        they must kill again.</span>
+      </label>
       <label class="rule locked">
         <input type="checkbox" checked disabled>
         <span class="toggle"></span>
         <span class="rule-text"><b>No undo</b> — once a token runs a number, the
         move is final. Always enforced.</span>
+      </label>
+      <label class="rule locked">
+        <input type="checkbox" checked disabled>
+        <span class="toggle"></span>
+        <span class="rule-text"><b>Auto-move</b> — when only one move is possible
+        (a single movable token), it runs automatically. Always on.</span>
       </label>
     </div>
 

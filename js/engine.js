@@ -12,10 +12,15 @@
   function newGame(cfg) {
     const seats = SEATS_FOR[cfg.numPlayers];
     return {
-      cfg: { numPlayers: cfg.numPlayers, dice: cfg.dice, rule1: !!cfg.rule1 },
+      cfg: {
+        numPlayers: cfg.numPlayers, dice: cfg.dice,
+        rule1: !!cfg.rule1,          // miss-kill penalty
+        rule3: !!cfg.rule3,          // kill required to enter home column
+      },
       seats,
       // tokens[i][t] = steps: -1 yard, 0..55 on board, 56 home
       tokens: seats.map(() => [-1, -1, -1, -1]),
+      hasKill: seats.map(() => false), // rule3: earned entry permission
       cur: 0,                 // index into seats
       phase: "roll",          // roll | move | over
       pool: [],               // dice values to spend
@@ -58,6 +63,8 @@
       }
       const to = steps + value;
       if (to > HOME) return;               // exact roll needed for home
+      // rule3: no entering the home column without a kill on record
+      if (g.cfg.rule3 && !g.hasKill[g.cur] && steps <= 50 && to > 50) return;
       const cell = cellOf(seat, to);
       const capture = cell !== null && !SAFE.has(cell) && enemiesOn(g, cell).length > 0;
       out.push({ t, value, from: steps, to, capture, open: false });
@@ -171,6 +178,15 @@
         g.tokens[e.p][e.t] = -1;
         ev.captured.push(e);
         say(g, `${colorOf(g)} killed ${COLOR[g.seats[e.p]]}'s token!`);
+        // rule3: a victim with all four tokens closed loses home permission
+        if (g.cfg.rule3 && g.hasKill[e.p] && g.tokens[e.p].every((s) => s === -1)) {
+          g.hasKill[e.p] = false;
+          say(g, `${COLOR[g.seats[e.p]]} lost all tokens — must kill again to enter home.`);
+        }
+      }
+      if (g.cfg.rule3 && !g.hasKill[g.cur]) {
+        g.hasKill[g.cur] = true;
+        say(g, `${colorOf(g)} earned home entry with that kill.`);
       }
       g.missKillers = g.missKillers.filter((t) => t !== tokenIdx); // it killed
       g.extraOwed++;                       // kill = extra roll
@@ -201,6 +217,11 @@
           say(g, `Penalty: ${colorOf(g)}'s token closed — it missed a kill.`);
         }
       }
+    }
+    // rule3: penalties may have closed the last token on the board
+    if (g.cfg.rule3 && g.hasKill[g.cur] && g.tokens[g.cur].every((s) => s === -1)) {
+      g.hasKill[g.cur] = false;
+      say(g, `${colorOf(g)} lost all tokens — must kill again to enter home.`);
     }
     g.missKillers = [];
     g.pool = [];

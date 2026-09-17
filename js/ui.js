@@ -65,7 +65,11 @@
   }
 
   $("#btn-start").addEventListener("click", () => {
-    G = E.newGame({ numPlayers: optPlayers, dice: optDice, rule1: $("#opt-rule1").checked });
+    G = E.newGame({
+      numPlayers: optPlayers, dice: optDice,
+      rule1: $("#opt-rule1").checked,
+      rule3: $("#opt-rule3").checked,
+    });
     G.log.push(`${NAME[E.curSeat(G)]} starts — roll the dice.`);
     $("#setup").hidden = true;
     $("#game").hidden = false;
@@ -176,6 +180,30 @@
       rolling = false;
       autoSelectChip();
       render();
+      maybeAuto();
+    }, 450);
+  }
+
+  /* auto-run: when only one token can move, play its values automatically */
+  let autoTimer = null;
+  function maybeAuto() {
+    if (!G || G.phase !== "move") return;
+    const moves = E.allMoves(G);
+    if (moves.length === 0) return;
+    const tokens = new Set(moves.map((m) => m.t));
+    if (moves.length > 1 && tokens.size > 1) return;   // real choice — user plays
+    clearTimeout(autoTimer);
+    autoTimer = setTimeout(() => {
+      if (!G || G.phase !== "move") return;
+      const ms = E.allMoves(G);
+      if (ms.length === 0) return;
+      const only = new Set(ms.map((m) => m.t));
+      if (ms.length > 1 && only.size > 1) { render(); return; }
+      G.log.push(`${NAME[E.curSeat(G)]} auto-moved — only option.`);
+      E.move(G, ms[0].t, ms[0].value);
+      autoSelectChip();
+      render();
+      maybeAuto();                                     // chain remaining values
     }, 450);
   }
 
@@ -194,6 +222,7 @@
     E.move(G, t, value);
     autoSelectChip();
     render();
+    maybeAuto();
   }
 
   /* ---------- render ---------- */
@@ -213,11 +242,12 @@
       bl.home.textContent =
         G.tokens[p].filter((x) => x === E.HOME).length + "/4 home";
       bl.roll.disabled = !(isCur && G.phase === "roll");
+      const needKill = G.cfg.rule3 && !G.hasKill[p];
       bl.status.textContent = G.phase === "over"
         ? (G.winner === G.seats[p] ? "Winner!" : "")
-        : isCur
+        : (isCur
           ? (G.phase === "roll" ? "Roll the dice" : "Tap a highlighted token")
-          : "Waiting…";
+          : "Waiting…") + (needKill ? " · 🔒 kill to unlock home" : "");
 
       // pool chips only in the active block
       bl.pool.innerHTML = "";
