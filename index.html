@@ -67,22 +67,12 @@
 
 <!-- ================= Game screen ================= -->
 <section id="game" class="game" hidden>
-  <div id="board" class="board"></div>
-
-  <aside class="side">
-    <div id="turn-banner" class="turn-banner">Red's turn</div>
-
-    <div class="dice-row">
-      <div id="dice" class="dice"></div>
-      <button id="btn-roll" class="roll">Roll</button>
-    </div>
-
-    <div id="pool" class="pool"></div>
-
-    <div id="players" class="players"></div>
-
-    <div id="log" class="log"></div>
-  </aside>
+  <div class="stage">
+    <div class="prow" id="row-top"></div>
+    <div id="board" class="board"></div>
+    <div class="prow" id="row-bottom"></div>
+    <div id="log" class="log-strip"></div>
+  </div>
 
   <div id="overlay" class="overlay" hidden>
     <div class="overlay-card">

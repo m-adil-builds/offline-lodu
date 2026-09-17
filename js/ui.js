@@ -1,4 +1,4 @@
-/* Ludo UI — rendering + interaction on top of engine.js */
+/* Ludo UI — per-player control blocks + board rendering on top of engine.js */
 (function () {
   "use strict";
   const E = window.LudoEngine;
@@ -6,7 +6,6 @@
 
   /* ---------- board geometry (15×15, cell = 100/15 %) ---------- */
   const CELL = 100 / 15;
-  // 52 loop cells, index = engine global cell, [row, col]
   const PATH = [
     [6,1],[6,2],[6,3],[6,4],[6,5],
     [5,6],[4,6],[3,6],[2,6],[1,6],[0,6],
@@ -21,16 +20,14 @@
     [8,5],[8,4],[8,3],[8,2],[8,1],[8,0],
     [7,0],[6,0],
   ];
-  // home-column cell for seat, k = steps-51 (0..4)
   const HOMECOL = [
-    (k) => [7, 1 + k],   // red
-    (k) => [1 + k, 7],   // green
-    (k) => [7, 13 - k],  // yellow
-    (k) => [13 - k, 7],  // blue
+    (k) => [7, 1 + k],
+    (k) => [1 + k, 7],
+    (k) => [7, 13 - k],
+    (k) => [13 - k, 7],
   ];
-  const YARD_ORIGIN = [[0, 0], [0, 9], [9, 9], [9, 0]];       // r,c of 6×6 yard
+  const YARD_ORIGIN = [[0, 0], [0, 9], [9, 9], [9, 0]];
   const YARD_SLOTS = [[1.5, 1.5], [1.5, 3.5], [3.5, 1.5], [3.5, 3.5]];
-  // finished tokens parked near the center, per seat
   const DONE_SPOT = [
     (t) => [7 + (t - 1.5) * 0.6, 5.6],
     (t) => [5.6, 7 + (t - 1.5) * 0.6],
@@ -40,11 +37,14 @@
   const NAME = ["Red", "Green", "Yellow", "Blue"];
   const CSSC = ["red", "green", "yellow", "blue"];
   const HEX = { red: "#e15b5b", green: "#3ddc97", yellow: "#fab219", blue: "#3987e5" };
+  // seat -> corner row ("top"/"bottom") matching the yard position
+  const ROW_OF = ["top", "top", "bottom", "bottom"]; // red TL, green TR, yellow BR, blue BL
 
   /* ---------- state ---------- */
-  let G = null;               // engine game state
-  let selChip = -1;           // selected index in G.pool
-  let tokenEls = [];          // [playerIdx][tokenIdx] -> element
+  let G = null;
+  let selChip = -1;
+  let tokenEls = [];
+  let blocks = [];            // per player: {root, dice[], roll, pool, status, home}
   let rolling = false;
 
   /* ---------- setup screen ---------- */
@@ -66,11 +66,11 @@
 
   $("#btn-start").addEventListener("click", () => {
     G = E.newGame({ numPlayers: optPlayers, dice: optDice, rule1: $("#opt-rule1").checked });
-    G.log.push(`${NAME[E.curSeat(G)]}'s turn.`);
+    G.log.push(`${NAME[E.curSeat(G)]} starts — roll the dice.`);
     $("#setup").hidden = true;
     $("#game").hidden = false;
     buildBoard();
-    buildDice();
+    buildBlocks();
     render();
   });
   $("#btn-again").addEventListener("click", () => location.reload());
@@ -79,14 +79,12 @@
   function buildBoard() {
     const b = $("#board");
     b.innerHTML = "";
-    // yards
     YARD_ORIGIN.forEach(([r, c], seat) => {
       const y = div("yard y-" + CSSC[seat]);
       pos(y, r, c, 6, 6);
       y.appendChild(div("yard-inner"));
       b.appendChild(y);
     });
-    // loop cells
     PATH.forEach(([r, c], i) => {
       const cell = div("cell");
       if (E.SAFE.has(i)) cell.classList.add("safe");
@@ -95,7 +93,6 @@
       pos(cell, r, c, 1, 1);
       b.appendChild(cell);
     });
-    // home columns
     HOMECOL.forEach((fn, seat) => {
       for (let k = 0; k < 5; k++) {
         const [r, c] = fn(k);
@@ -104,8 +101,7 @@
         b.appendChild(cell);
       }
     });
-    b.appendChild(Object.assign(div("center"), {}));
-    // tokens
+    b.appendChild(div("center"));
     tokenEls = G.seats.map((seat, p) =>
       [0, 1, 2, 3].map((t) => {
         const el = div("token t-" + CSSC[seat]);
@@ -121,21 +117,54 @@
     if (h) { el.style.height = h * CELL + "%"; el.style.width = w * CELL + "%"; }
   }
 
-  /* ---------- dice ---------- */
-  function buildDice() {
-    const d = $("#dice");
-    d.innerHTML = "";
-    for (let i = 0; i < G.cfg.dice; i++) {
-      const die = div("die");
-      die.dataset.v = "6";
-      for (let p = 0; p < 9; p++) die.appendChild(div("pip"));
-      d.appendChild(die);
-    }
+  /* ---------- per-player control blocks ---------- */
+  function buildBlocks() {
+    $("#row-top").innerHTML = "";
+    $("#row-bottom").innerHTML = "";
+    blocks = G.seats.map((seat, p) => {
+      const root = div("pblock");
+      root.style.setProperty("--pc", HEX[CSSC[seat]]);
+
+      const head = div("pb-head");
+      head.appendChild(div("pb-dot"));
+      const name = div("pb-name"); name.textContent = NAME[seat];
+      const turn = div("pb-turn"); turn.textContent = "YOUR TURN";
+      const home = div("pb-home");
+      head.append(name, turn, home);
+
+      const diceRow = div("pb-dice");
+      const dice = [];
+      for (let i = 0; i < G.cfg.dice; i++) {
+        const die = div("die");
+        die.dataset.v = "6";
+        for (let k = 0; k < 9; k++) die.appendChild(div("pip"));
+        diceRow.appendChild(die);
+        dice.push(die);
+      }
+      const roll = document.createElement("button");
+      roll.className = "roll";
+      roll.textContent = "Roll";
+      roll.addEventListener("click", () => onRoll(p));
+      diceRow.appendChild(roll);
+
+      const pool = div("pb-pool");
+      const status = div("pb-status");
+
+      root.append(head, diceRow, pool, status);
+      // right-side seats (green TR, yellow BR) sit on the right of their row
+      const right = seat === 1 || seat === 2;
+      root.style.order = right ? 1 : 0;
+      if (right) root.style.marginLeft = "auto";
+      $(ROW_OF[seat] === "top" ? "#row-top" : "#row-bottom").appendChild(root);
+      return { root, dice, roll, pool, status, home };
+    });
   }
-  $("#btn-roll").addEventListener("click", () => {
-    if (!G || G.phase !== "roll" || rolling) return;
+
+  /* ---------- interaction ---------- */
+  function onRoll(p) {
+    if (!G || G.phase !== "roll" || p !== G.cur || rolling) return;
     rolling = true;
-    const dice = document.querySelectorAll(".die");
+    const dice = blocks[p].dice;
     dice.forEach((d) => d.classList.add("rolling"));
     const spin = setInterval(() => dice.forEach((d) =>
       (d.dataset.v = 1 + Math.floor(Math.random() * 6))), 70);
@@ -148,9 +177,8 @@
       autoSelectChip();
       render();
     }, 450);
-  });
+  }
 
-  /* ---------- interaction ---------- */
   function autoSelectChip() {
     selChip = -1;
     if (!G || G.phase !== "move") return;
@@ -162,17 +190,9 @@
   function onToken(p, t) {
     if (!G || G.phase !== "move" || p !== G.cur || selChip < 0) return;
     const value = G.pool[selChip];
-    const legal = E.movesFor(G, value).some((m) => m.t === t);
-    if (!legal) return;
+    if (!E.movesFor(G, value).some((m) => m.t === t)) return;
     E.move(G, t, value);
     autoSelectChip();
-    render();
-  }
-
-  function onChip(i) {
-    if (!G || G.phase !== "move") return;
-    if (E.movesFor(G, G.pool[i]).length === 0) return;
-    selChip = i;
     render();
   }
 
@@ -181,34 +201,48 @@
     if (!G) return;
     const seat = E.curSeat(G);
 
-    // banner
-    const banner = $("#turn-banner");
-    if (G.phase === "over") banner.textContent = `${NAME[G.winner]} wins!`;
-    else banner.textContent = `${NAME[seat]}'s turn — ${G.phase === "roll" ? "roll the dice" : "move a token"}`;
-    banner.style.borderLeftColor = HEX[CSSC[seat]];
+    // board glow follows the current player
+    $("#board").style.boxShadow = G.phase === "over"
+      ? "none"
+      : `0 0 30px color-mix(in srgb, ${HEX[CSSC[seat]]} 30%, transparent)`;
 
-    // roll button
-    $("#btn-roll").disabled = G.phase !== "roll";
+    // player blocks
+    blocks.forEach((bl, p) => {
+      const isCur = p === G.cur && G.phase !== "over";
+      bl.root.classList.toggle("active", isCur);
+      bl.home.textContent =
+        G.tokens[p].filter((x) => x === E.HOME).length + "/4 home";
+      bl.roll.disabled = !(isCur && G.phase === "roll");
+      bl.status.textContent = G.phase === "over"
+        ? (G.winner === G.seats[p] ? "Winner!" : "")
+        : isCur
+          ? (G.phase === "roll" ? "Roll the dice" : "Tap a highlighted token")
+          : "Waiting…";
 
-    // pool chips
-    const pool = $("#pool");
-    pool.innerHTML = "";
-    G.pool.forEach((v, i) => {
-      const c = document.createElement("button");
-      c.className = "chip";
-      c.textContent = v;
-      const usable = E.movesFor(G, v).length > 0;
-      if (!usable) c.classList.add("dead");
-      if (i === selChip) c.classList.add("sel");
-      c.addEventListener("click", () => onChip(i));
-      pool.appendChild(c);
+      // pool chips only in the active block
+      bl.pool.innerHTML = "";
+      if (isCur && G.phase === "move") {
+        G.pool.forEach((v, i) => {
+          const c = document.createElement("button");
+          c.className = "chip";
+          c.textContent = v;
+          if (E.movesFor(G, v).length === 0) c.classList.add("dead");
+          if (i === selChip) c.classList.add("sel");
+          c.addEventListener("click", () => {
+            if (E.movesFor(G, v).length === 0) return;
+            selChip = i;
+            render();
+          });
+          bl.pool.appendChild(c);
+        });
+      }
     });
 
     // tokens
     const movers = new Set(
       G.phase === "move" && selChip >= 0
         ? E.movesFor(G, G.pool[selChip]).map((m) => m.t) : []);
-    const stack = {};                       // cellKey -> count for offsets
+    const stack = {};
     G.seats.forEach((s, p) => {
       G.tokens[p].forEach((steps, t) => {
         const el = tokenEls[p][t];
@@ -234,27 +268,15 @@
       });
     });
 
-    // players panel
-    const pl = $("#players");
-    pl.innerHTML = "";
-    G.seats.forEach((s, p) => {
-      const home = G.tokens[p].filter((x) => x === E.HOME).length;
-      const row = div("p-row" + (p === G.cur && G.phase !== "over" ? " now" : ""));
-      row.innerHTML = `<span class="p-dot" style="background:${HEX[CSSC[s]]}"></span>
-        ${NAME[s]}<span class="p-home">${home}/4 home</span>`;
-      pl.appendChild(row);
-    });
-
     // log
     const log = $("#log");
-    log.innerHTML = G.log.slice(-8).map((m) => `<div>${m}</div>`).join("");
+    log.innerHTML = G.log.slice(-5).map((m) => `<div>${m}</div>`).join("");
     log.scrollTop = log.scrollHeight;
 
     // winner overlay
     if (G.phase === "over") {
-      const w = CSSC[G.winner];
       $("#win-text").textContent = `${NAME[G.winner]} wins!`;
-      $("#win-text").style.color = HEX[w];
+      $("#win-text").style.color = HEX[CSSC[G.winner]];
       $("#overlay").hidden = false;
     }
   }
@@ -267,7 +289,7 @@
     $("#btn-start").click();
     if (q.get("demo") && G) {
       G.tokens.forEach((tk, p) => { tk[0] = 3 + p * 5; tk[1] = 30 + p * 3; });
-      E.roll(G, () => (G.cfg.dice === 2 ? [6, 4][Math.floor(Math.random() * 2)] : 6));
+      E.roll(G, () => [6, 4][Math.floor(Math.random() * 2)]);
       autoSelectChip();
       render();
     }

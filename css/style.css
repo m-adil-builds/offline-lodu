@@ -68,20 +68,56 @@ body {
 .start:hover { filter: brightness(1.07); }
 
 /* ================= game layout ================= */
-.game {
-  display: flex; gap: 22px; align-items: flex-start; justify-content: center;
-  padding: 20px; flex-wrap: wrap;
-}
+.game { display: flex; justify-content: center; padding: 14px; }
+.stage { width: min(96vw, 66vh, 640px); }
 .board {
   position: relative;
-  width: min(92vw, 78vh, 720px);
+  width: 100%;
   aspect-ratio: 1;
   background: var(--panel);
   border: 1px solid var(--border);
   border-radius: 14px;
   overflow: hidden;
-  flex: 0 0 auto;
+  transition: box-shadow .3s;
 }
+
+/* per-player control blocks at the board corners */
+.prow { display: flex; justify-content: space-between; gap: 12px; margin: 12px 0; }
+.prow:empty { display: none; }
+.pblock {
+  flex: 1; min-width: 0; max-width: 49%;
+  background: var(--panel); border: 1px solid var(--border);
+  border-radius: 14px; padding: 12px 14px;
+  opacity: .5; transition: opacity .25s, box-shadow .25s, border-color .25s;
+}
+.pblock.active {
+  opacity: 1;
+  border-color: var(--pc);
+  box-shadow: 0 0 0 1px var(--pc), 0 0 26px color-mix(in srgb, var(--pc) 45%, transparent);
+}
+.pb-head { display: flex; align-items: center; gap: 8px; margin-bottom: 9px; }
+.pb-dot { width: 12px; height: 12px; border-radius: 50%; background: var(--pc); }
+.pb-name { font-weight: 700; }
+.pb-turn {
+  font-size: 10.5px; font-weight: 800; letter-spacing: .8px; color: #0b0d10;
+  background: var(--pc); border-radius: 999px; padding: 2px 9px;
+  visibility: hidden;
+}
+.pblock.active .pb-turn { visibility: visible; animation: blink 1.1s infinite alternate; }
+@keyframes blink { from { opacity: 1; } to { opacity: .55; } }
+.pb-home { margin-left: auto; color: var(--muted); font-size: 12px; font-variant-numeric: tabular-nums; }
+.pb-dice { display: flex; align-items: center; gap: 8px; }
+.pb-pool { display: flex; gap: 6px; flex-wrap: wrap; margin-top: 9px; min-height: 0; }
+.pb-status { color: var(--muted); font-size: 12px; margin-top: 8px; }
+.pblock.active .pb-status { color: var(--ink-2); }
+
+.log-strip {
+  background: var(--panel); border: 1px solid var(--border); border-radius: 12px;
+  padding: 9px 14px; font-size: 12.5px; color: var(--muted);
+  max-height: 84px; overflow-y: auto;
+}
+.log-strip div { padding: 1px 0; }
+.log-strip div:last-child { color: var(--ink-2); }
 
 /* cells are absolutely positioned by JS in % of board */
 .cell {
@@ -128,22 +164,10 @@ body {
 }
 .token.done { opacity: .9; filter: saturate(.8); }
 
-/* ================= side panel ================= */
-.side {
-  width: 300px; max-width: 92vw; flex: 0 1 auto;
-  display: flex; flex-direction: column; gap: 14px;
-}
-.turn-banner {
-  padding: 13px 16px; border-radius: 12px; font-weight: 700; font-size: 17px;
-  background: var(--panel); border: 1px solid var(--border);
-  border-left: 6px solid var(--green);
-}
-.dice-row { display: flex; gap: 12px; align-items: center;
-  background: var(--panel); border: 1px solid var(--border);
-  border-radius: 12px; padding: 14px; }
-.dice { display: flex; gap: 10px; }
+/* ================= dice ================= */
+.dice { display: flex; gap: 8px; }
 .die {
-  width: 52px; height: 52px; border-radius: 10px; background: #f5f5f0;
+  width: 42px; height: 42px; border-radius: 9px; background: #f5f5f0;
   display: grid; grid-template: repeat(3, 1fr) / repeat(3, 1fr); padding: 7px;
   box-shadow: inset 0 -4px 0 rgba(0,0,0,.25), 0 2px 6px rgba(0,0,0,.5);
 }
@@ -164,35 +188,19 @@ body {
   { visibility: visible; }
 
 .roll {
-  margin-left: auto; padding: 12px 22px; font: inherit; font-weight: 700;
+  margin-left: auto; padding: 10px 18px; font: inherit; font-weight: 700;
   border: 0; border-radius: 10px; cursor: pointer;
   background: linear-gradient(140deg, var(--green), #2cc487); color: #06231a;
 }
 .roll:disabled { background: var(--panel-2); color: var(--muted); cursor: not-allowed; }
 
-.pool { display: flex; gap: 8px; flex-wrap: wrap; min-height: 40px; }
 .chip {
-  min-width: 40px; height: 40px; border-radius: 10px; font: inherit; font-size: 18px;
+  min-width: 36px; height: 36px; border-radius: 9px; font: inherit; font-size: 16px;
   font-weight: 700; cursor: pointer;
   background: var(--panel-2); color: var(--ink); border: 1px solid var(--border);
 }
 .chip.sel { border-color: var(--green); background: rgba(61, 220, 151, .16); color: var(--green); }
 .chip.dead { opacity: .35; cursor: not-allowed; text-decoration: line-through; }
-
-.players { background: var(--panel); border: 1px solid var(--border);
-  border-radius: 12px; padding: 10px 14px; font-size: 13.5px; }
-.players .p-row { display: flex; align-items: center; gap: 9px; padding: 5px 0; color: var(--ink-2); }
-.players .p-dot { width: 11px; height: 11px; border-radius: 50%; }
-.players .p-home { margin-left: auto; color: var(--muted); font-variant-numeric: tabular-nums; }
-.players .p-row.now { color: var(--ink); font-weight: 650; }
-
-.log {
-  background: var(--panel); border: 1px solid var(--border); border-radius: 12px;
-  padding: 10px 14px; font-size: 12.5px; color: var(--muted);
-  max-height: 170px; overflow-y: auto;
-}
-.log div { padding: 2px 0; }
-.log div:last-child { color: var(--ink-2); }
 
 /* ================= overlay ================= */
 .overlay { position: fixed; inset: 0; background: rgba(5, 8, 12, 0.8);
@@ -201,7 +209,10 @@ body {
   border-radius: 18px; padding: 38px 44px; text-align: center; }
 .win-text { font-size: 30px; font-weight: 800; margin-bottom: 20px; }
 
-@media (max-width: 1080px) {
-  .game { flex-direction: column; align-items: center; }
-  .side { width: min(92vw, 720px); }
+@media (max-width: 560px) {
+  .pblock { padding: 9px 10px; }
+  .pb-name { font-size: 13px; }
+  .die { width: 34px; height: 34px; padding: 5px; }
+  .roll { padding: 8px 13px; font-size: 13px; }
+  .chip { min-width: 31px; height: 31px; font-size: 14px; }
 }
