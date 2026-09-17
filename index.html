@@ -1,0 +1,98 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Ludo — Offline</title>
+<link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+
+<!-- ================= Setup screen ================= -->
+<section id="setup" class="setup">
+  <h1 class="title">LUDO</h1>
+  <p class="subtitle">Offline · pass &amp; play on one device</p>
+
+  <div class="setup-card">
+    <div class="field">
+      <div class="field-label">Players</div>
+      <div class="seg" id="opt-players">
+        <button data-v="2" class="on">2</button>
+        <button data-v="3">3</button>
+        <button data-v="4">4</button>
+      </div>
+    </div>
+
+    <div class="field">
+      <div class="field-label">Dice</div>
+      <div class="seg" id="opt-dice">
+        <button data-v="1">1 die</button>
+        <button data-v="2" class="on">2 dice</button>
+      </div>
+    </div>
+
+    <div class="field">
+      <div class="field-label">Custom rules</div>
+      <label class="rule">
+        <input type="checkbox" id="opt-rule1" checked>
+        <span class="toggle"></span>
+        <span class="rule-text"><b>Miss-kill penalty</b> — if a token could kill an
+        enemy with an available dice value and the turn ends without that kill,
+        that token is closed (sent back to its yard).</span>
+      </label>
+      <label class="rule locked">
+        <input type="checkbox" checked disabled>
+        <span class="toggle"></span>
+        <span class="rule-text"><b>No undo</b> — once a token runs a number, the
+        move is final. Always enforced.</span>
+      </label>
+    </div>
+
+    <div class="field">
+      <div class="field-label">Classic rules (always on)</div>
+      <ul class="classic">
+        <li>Tokens enter the board only with a 6.</li>
+        <li id="rule-dice-2">Both dice roll together — spend each value on any token.
+            Double six = extra roll. 6,6,6,6 = turn void.</li>
+        <li id="rule-dice-1" hidden>A 6 grants an extra roll. Three consecutive 6s void the turn.</li>
+        <li>Star squares are safe — no kills there.</li>
+        <li>Killing a token grants an extra roll.</li>
+        <li>Reaching home needs the exact number.</li>
+      </ul>
+    </div>
+
+    <button id="btn-start" class="start">Start game</button>
+  </div>
+</section>
+
+<!-- ================= Game screen ================= -->
+<section id="game" class="game" hidden>
+  <div id="board" class="board"></div>
+
+  <aside class="side">
+    <div id="turn-banner" class="turn-banner">Red's turn</div>
+
+    <div class="dice-row">
+      <div id="dice" class="dice"></div>
+      <button id="btn-roll" class="roll">Roll</button>
+    </div>
+
+    <div id="pool" class="pool"></div>
+
+    <div id="players" class="players"></div>
+
+    <div id="log" class="log"></div>
+  </aside>
+
+  <div id="overlay" class="overlay" hidden>
+    <div class="overlay-card">
+      <div id="win-text" class="win-text">Red wins!</div>
+      <button id="btn-again" class="start">Play again</button>
+    </div>
+  </div>
+</section>
+
+<script src="js/engine.js"></script>
+<script src="js/ui.js"></script>
+</body>
+</html>
