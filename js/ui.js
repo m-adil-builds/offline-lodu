@@ -88,12 +88,22 @@
       pos(y, r, c, 6, 6);
       y.appendChild(div("yard-inner"));
       b.appendChild(y);
+      // empty slot rings under the tokens
+      YARD_SLOTS.forEach(([sr, sc]) => {
+        const s = div("yslot s-" + CSSC[seat]);
+        pos(s, r + sr + 0.09, c + sc + 0.09);
+        b.appendChild(s);
+      });
     });
+    const ENTRY_ROT = [0, 90, 180, 270];   // travel direction out of each start cell
     PATH.forEach(([r, c], i) => {
       const cell = div("cell");
       if (E.SAFE.has(i)) cell.classList.add("safe");
       const startSeat = E.OFFSET.indexOf(i);
-      if (startSeat !== -1) cell.classList.add("c-" + CSSC[startSeat]);
+      if (startSeat !== -1) {
+        cell.classList.add("c-" + CSSC[startSeat], "entry");
+        cell.style.setProperty("--rot", ENTRY_ROT[startSeat] + "deg");
+      }
       pos(cell, r, c, 1, 1);
       b.appendChild(cell);
     });
