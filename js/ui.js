@@ -49,7 +49,11 @@
 
   /* ---------- setup screen ---------- */
   let optPlayers = 2, optDice = 2;
-  bindSeg("#opt-players", (v) => (optPlayers = +v));
+  bindSeg("#opt-players", (v) => {
+    optPlayers = +v;
+    $("#rule4-row").classList.toggle("off", optPlayers !== 4);
+  });
+  $("#rule4-row").classList.add("off");            // default: 2 players selected
   bindSeg("#opt-dice", (v) => {
     optDice = +v;
     $("#rule-dice-1").hidden = optDice !== 1;
@@ -69,6 +73,7 @@
       numPlayers: optPlayers, dice: optDice,
       rule1: $("#opt-rule1").checked,
       rule3: $("#opt-rule3").checked,
+      rule4: optPlayers === 4 && $("#opt-rule4").checked,
     });
     G.log.push(`${NAME[E.curSeat(G)]} starts — roll the dice.`);
     $("#setup").hidden = true;
@@ -253,11 +258,16 @@
         G.tokens[p].filter((x) => x === E.HOME).length + "/4 home";
       bl.roll.disabled = !(isCur && G.phase === "roll");
       const needKill = G.cfg.rule3 && !G.hasKill[p];
-      bl.status.textContent = G.phase === "over"
-        ? (G.winner === G.seats[p] ? "Winner!" : "")
-        : (isCur
-          ? (G.phase === "roll" ? "Roll the dice" : "Tap a highlighted token")
-          : "Waiting…") + (needKill ? " · 🔒 kill to unlock home" : "");
+      const place = G.finishedOrder.indexOf(p);
+      const medal = ["🥇", "🥈", "🥉"][place] || "🏁";
+      bl.root.classList.toggle("done-block", place !== -1);
+      bl.status.textContent = place !== -1
+        ? `Finished ${medal} #${place + 1}`
+        : G.phase === "over"
+          ? "Lost"
+          : (isCur
+            ? (G.phase === "roll" ? "Roll the dice" : "Tap a highlighted token")
+            : "Waiting…") + (needKill ? " · 🔒 kill to unlock home" : "");
 
       // pool chips only in the active block
       bl.pool.innerHTML = "";
@@ -313,10 +323,24 @@
     log.innerHTML = G.log.slice(-5).map((m) => `<div>${m}</div>`).join("");
     log.scrollTop = log.scrollHeight;
 
-    // winner overlay
+    // winner overlay with full ranking
     if (G.phase === "over") {
-      $("#win-text").textContent = `${NAME[G.winner]} wins!`;
+      $("#win-text").textContent = G.cfg.rule4
+        ? `${NAME[G.winner]} & ${NAME[G.seats[G.finishedOrder[1]]]} win!`
+        : `${NAME[G.winner]} wins!`;
       $("#win-text").style.color = HEX[CSSC[G.winner]];
+      const ranked = G.finishedOrder.concat(
+        G.seats.map((_, p) => p).filter((p) => !G.finishedOrder.includes(p)));
+      const winners = G.cfg.rule4 ? 2 : G.seats.length - 1;
+      $("#rank-list").innerHTML = ranked.map((p, i) => {
+        const s = G.seats[p];
+        const win = i < winners && G.finishedOrder.includes(p);
+        return `<div class="rk">
+          <span class="p-dot" style="width:11px;height:11px;border-radius:50%;background:${HEX[CSSC[s]]}"></span>
+          <b>${NAME[s]}</b> ${["🥇","🥈","🥉",""][i] ?? ""}
+          <span class="tag ${win ? "win" : "lose"}">${win ? "WINNER" : "LOSER"}</span>
+        </div>`;
+      }).join("");
       $("#overlay").hidden = false;
     }
   }

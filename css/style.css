@@ -260,7 +260,17 @@ body {
   display: grid; place-items: center; z-index: 20; }
 .overlay-card { background: var(--panel); border: 1px solid var(--border);
   border-radius: 18px; padding: 38px 44px; text-align: center; }
-.win-text { font-size: 30px; font-weight: 800; margin-bottom: 20px; }
+.win-text { font-size: 30px; font-weight: 800; margin-bottom: 14px; }
+.rank-list { margin-bottom: 22px; text-align: left; }
+.rank-list .rk { display: flex; align-items: center; gap: 10px;
+  padding: 6px 4px; font-size: 15px; color: var(--ink-2); }
+.rank-list .rk b { color: var(--ink); }
+.rank-list .rk .tag { margin-left: auto; font-size: 11px; font-weight: 800;
+  letter-spacing: .6px; border-radius: 999px; padding: 2px 10px; }
+.rank-list .rk .tag.win  { background: rgba(61, 220, 151, .18); color: var(--green); }
+.rank-list .rk .tag.lose { background: rgba(225, 91, 91, .18); color: var(--red); }
+.rule.off { opacity: .45; pointer-events: none; }
+.rule-text i { color: var(--muted); font-style: normal; font-size: 12px; }
 
 @media (max-width: 560px) {
   .pblock { padding: 9px 10px; }

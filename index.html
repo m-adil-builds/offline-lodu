@@ -48,6 +48,14 @@
         token. If all four of their tokens get closed, the permission resets —
         they must kill again.</span>
       </label>
+      <label class="rule" id="rule4-row">
+        <input type="checkbox" id="opt-rule4">
+        <span class="toggle"></span>
+        <span class="rule-text"><b>Top 2 win</b> <i>(4 players only)</i> — the
+        first two players to finish are the winners; the other two are losers.
+        When off, the game runs until one player remains — the last player is
+        the loser.</span>
+      </label>
       <label class="rule locked">
         <input type="checkbox" checked disabled>
         <span class="toggle"></span>
@@ -93,6 +101,7 @@
   <div id="overlay" class="overlay" hidden>
     <div class="overlay-card">
       <div id="win-text" class="win-text">Red wins!</div>
+      <div id="rank-list" class="rank-list"></div>
       <button id="btn-again" class="start">Play again</button>
     </div>
   </div>

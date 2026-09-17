@@ -16,6 +16,7 @@
         numPlayers: cfg.numPlayers, dice: cfg.dice,
         rule1: !!cfg.rule1,          // miss-kill penalty
         rule3: !!cfg.rule3,          // kill required to enter home column
+        rule4: !!cfg.rule4 && cfg.numPlayers === 4, // top-2 win (4 players only)
       },
       seats,
       // tokens[i][t] = steps: -1 yard, 0..55 on board, 56 home
@@ -29,6 +30,7 @@
       dblChain: 0,            // 2-dice: consecutive double sixes
       extraOwed: 0,           // rolls owed after pool empties (6 in 1-die, kills)
       missKillers: [],        // token idx with an unused kill chance this turn
+      finishedOrder: [],      // player indices in finishing order
       winner: null,
       log: [],
     };
@@ -197,10 +199,21 @@
       ev.finished = true;
       say(g, `${colorOf(g)} brought a token home!`);
       if (g.tokens[g.cur].every((s) => s === HOME)) {
-        g.winner = curSeat(g);
-        g.phase = "over";
-        ev.won = true;
-        say(g, `${colorOf(g).toUpperCase()} WINS!`);
+        g.finishedOrder.push(g.cur);
+        say(g, `${colorOf(g).toUpperCase()} finished #${g.finishedOrder.length}!`);
+        // game over when: top-2 rule → two finishers; otherwise → one player left
+        const need = g.cfg.rule4 ? 2 : g.seats.length - 1;
+        if (g.finishedOrder.length >= need) {
+          g.winner = g.seats[g.finishedOrder[0]];
+          g.phase = "over";
+          ev.won = true;
+          say(g, "Game over.");
+          return ev;
+        }
+        // player leaves the rotation; the game continues without them
+        g.pool = [];
+        g.extraOwed = 0;
+        finalizeTurn(g);
         return ev;
       }
     }
@@ -228,7 +241,9 @@
     g.sixChain = 0;
     g.dblChain = 0;
     g.extraOwed = 0;
-    g.cur = (g.cur + 1) % g.seats.length;
+    do {
+      g.cur = (g.cur + 1) % g.seats.length;
+    } while (g.finishedOrder.includes(g.cur));   // skip players already home
     g.pendingRolls = 1;
     g.phase = "roll";
     say(g, `${colorOf(g)}'s turn.`);
