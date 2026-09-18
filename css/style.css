@@ -276,7 +276,48 @@ body {
   background: var(--panel-2); color: var(--ink); border: 1px solid var(--border);
 }
 .chip.sel { border-color: var(--green); background: rgba(61, 220, 151, .16); color: var(--green); }
-.chip.dead { opacity: .35; cursor: not-allowed; text-decoration: line-through; }
+.chip.dead { opacity: .35; text-decoration: line-through; }
+.chip.passive { cursor: default; display: grid; place-items: center; }
+
+/* single-die turn: the second die sits idle */
+.die.idle { opacity: .28; filter: grayscale(.7); }
+
+/* token value popup */
+.tokpop {
+  position: absolute; z-index: 8; display: flex; gap: 5px; padding: 6px;
+  background: rgba(12, 15, 20, 0.96); border: 1px solid var(--border);
+  border-radius: 11px; transform: translateX(-28%);
+  box-shadow: 0 8px 22px rgba(0, 0, 0, 0.65);
+}
+.tokpop button {
+  width: 36px; height: 36px; border-radius: 9px; cursor: pointer;
+  background: var(--panel-2); color: var(--ink); border: 1px solid var(--border);
+  font: inherit; font-size: 16px; font-weight: 700;
+}
+.tokpop button:hover { border-color: var(--green); color: var(--green); }
+
+/* miss-kill feedback */
+.token.missed {
+  animation: missShake .5s ease-in-out 2;
+  box-shadow: 0 0 0 3px var(--red), 0 0 24px var(--red) !important;
+  z-index: 6;
+}
+@keyframes missShake {
+  0%, 100% { transform: translateX(0); }
+  25% { transform: translateX(-30%); }
+  75% { transform: translateX(30%); }
+}
+.toast {
+  position: absolute; left: 50%; top: 42%; z-index: 9;
+  transform: translate(-50%, -50%) scale(.9);
+  background: rgba(20, 10, 12, 0.94); color: var(--ink);
+  border: 1px solid rgba(225, 91, 91, 0.6); border-radius: 12px;
+  padding: 12px 20px; font-weight: 700; white-space: nowrap;
+  opacity: 0; pointer-events: none;
+  transition: opacity .25s, transform .25s;
+  box-shadow: 0 0 26px rgba(225, 91, 91, 0.35);
+}
+.toast.show { opacity: 1; transform: translate(-50%, -50%) scale(1); }
 
 /* ================= overlay ================= */
 .overlay { position: fixed; inset: 0; background: rgba(5, 8, 12, 0.8);

@@ -31,6 +31,8 @@
       extraOwed: 0,           // rolls owed after pool empties (6 in 1-die, kills)
       missKillers: [],        // token idx with an unused kill chance this turn
       finishedOrder: [],      // player indices in finishing order
+      singleDieTurn: false,   // 2-dice player down to one token rolls one die
+      lastPenalty: null,      // {p, items:[{t, from}]} for UI animation
       winner: null,
       log: [],
     };
@@ -55,7 +57,7 @@
     return out;
   }
 
-  function movesFor(g, value) {            // legal moves for one pool value
+  function rawMovesFor(g, value) {         // legal moves for one pool value
     const seat = curSeat(g), out = [];
     g.tokens[g.cur].forEach((steps, t) => {
       if (steps === HOME) return;
@@ -74,6 +76,83 @@
     return out;
   }
 
+  /* ----- both-dice enforcement (2-dice mode): full-pool feasibility solver -----
+     A move is only legal if the REMAINING pool values can still all be played
+     in some order. Simulation tracks own tokens, the hasKill flag (a mid-turn
+     kill can unlock home entry) and enemy loop cells (for capture detection). */
+  function enemyCellsOf(g) {
+    const cells = [];
+    g.seats.forEach((seat, p) => {
+      if (p === g.cur) return;
+      g.tokens[p].forEach((steps) => {
+        const c = cellOf(seat, steps);
+        if (c !== null) cells.push(c);
+      });
+    });
+    return cells;
+  }
+
+  function simSteps(g, tokens, hasKill, value) { // [{t, to}] under a sim state
+    const out = [];
+    tokens.forEach((s, t) => {
+      if (s === HOME) return;
+      if (s === -1) { if (value === 6) out.push({ t, to: 0 }); return; }
+      const to = s + value;
+      if (to > HOME) return;
+      if (g.cfg.rule3 && !hasKill && s <= 50 && to > 50) return;
+      out.push({ t, to });
+    });
+    return out;
+  }
+
+  function canSpendAll(g, pool, tokens, hasKill, enemies) {
+    if (pool.length === 0) return true;
+    const seat = curSeat(g), tried = new Set();
+    for (let i = 0; i < pool.length; i++) {
+      const v = pool[i];
+      if (tried.has(v)) continue;
+      tried.add(v);
+      const rest = pool.slice(0, i).concat(pool.slice(i + 1));
+      for (const m of simSteps(g, tokens, hasKill, v)) {
+        const cell = m.to <= 50 ? (OFFSET[seat] + m.to) % TRACK : null;
+        let hk = hasKill, en = enemies;
+        if (cell !== null && !SAFE.has(cell) && enemies.includes(cell)) {
+          hk = true;
+          en = enemies.filter((c) => c !== cell);
+        }
+        const nt = tokens.slice();
+        nt[m.t] = m.to;
+        if (canSpendAll(g, rest, nt, hk, en)) return true;
+      }
+    }
+    return false;
+  }
+
+  function bothDiceEnforced(g) {
+    return g.cfg.dice === 2 && !g.singleDieTurn && g.phase === "move" && g.pool.length > 1;
+  }
+
+  function movesFor(g, value) {
+    const base = rawMovesFor(g, value);
+    if (!bothDiceEnforced(g)) return base;
+    const enemies = enemyCellsOf(g);
+    const iv = g.pool.indexOf(value);
+    if (iv === -1) return [];
+    const rest = g.pool.slice(0, iv).concat(g.pool.slice(iv + 1));
+    return base.filter((m) => {
+      const seat = curSeat(g);
+      const cell = m.to <= 50 ? (OFFSET[seat] + m.to) % TRACK : null;
+      let hk = g.hasKill[g.cur], en = enemies;
+      if (cell !== null && !SAFE.has(cell) && enemies.includes(cell)) {
+        hk = true;
+        en = enemies.filter((c) => c !== cell);
+      }
+      const nt = g.tokens[g.cur].slice();
+      nt[m.t] = m.to;
+      return canSpendAll(g, rest, nt, hk, en);
+    });
+  }
+
   function allMoves(g) {
     const seen = new Set(), out = [];
     for (const v of g.pool) {
@@ -86,12 +165,18 @@
 
   function rng() { return 1 + Math.floor(Math.random() * 6); }
 
+  function aliveTokens(g) {
+    return g.tokens[g.cur].filter((s) => s !== HOME).length;
+  }
+
   function roll(g, rand) {
     if (g.phase !== "roll" || g.pendingRolls < 1) return null;
     rand = rand || rng;
     g.pendingRolls--;
+    // rule: with one token left in play, a 2-dice player rolls a single die
+    g.singleDieTurn = g.cfg.dice === 2 && aliveTokens(g) === 1;
     let faces;
-    if (g.cfg.dice === 1) {
+    if (g.cfg.dice === 1 || g.singleDieTurn) {
       faces = [rand()];
       g.pool.push(faces[0]);
       if (faces[0] === 6) {
@@ -128,6 +213,19 @@
 
   function enterMovePhase(g) {
     g.phase = "move";
+    // both-dice rule: if the whole pool cannot be played, the turn is void
+    if (g.cfg.dice === 2 && !g.singleDieTurn && g.pool.length > 1) {
+      const ok = canSpendAll(g, g.pool, g.tokens[g.cur], g.hasKill[g.cur], enemyCellsOf(g));
+      if (!ok) {
+        const partly = g.pool.some((v) => rawMovesFor(g, v).length > 0);
+        say(g, partly
+          ? `${colorOf(g)} cannot play both dice — turn void.`
+          : `${colorOf(g)} has no possible move.`);
+        g.pool = [];
+        finalizeTurn(g);
+        return;
+      }
+    }
     pruneOrEnd(g);
   }
 
@@ -216,20 +314,27 @@
         finalizeTurn(g);
         return ev;
       }
+      // finishing a token earns an extra roll
+      g.extraOwed++;
+      say(g, `${colorOf(g)} gets an extra roll for finishing a token.`);
     }
     pruneOrEnd(g);
     return ev;
   }
 
   function finalizeTurn(g) {
+    g.lastPenalty = null;
     if (g.cfg.rule1 && g.missKillers.length) {
+      const items = [];
       for (const t of g.missKillers) {
         const s = g.tokens[g.cur][t];
         if (s >= 0 && s < HOME) {
+          items.push({ t, from: s });
           g.tokens[g.cur][t] = -1;
           say(g, `Penalty: ${colorOf(g)}'s token closed — it missed a kill.`);
         }
       }
+      if (items.length) g.lastPenalty = { p: g.cur, items };
     }
     // rule3: penalties may have closed the last token on the board
     if (g.cfg.rule3 && g.hasKill[g.cur] && g.tokens[g.cur].every((s) => s === -1)) {

@@ -42,7 +42,6 @@
 
   /* ---------- state ---------- */
   let G = null;
-  let selChip = -1;
   let tokenEls = [];
   let blocks = [];            // per player: {root, dice[], roll, pool, status, home}
   let rolling = false;
@@ -188,20 +187,68 @@
   function onRoll(p) {
     if (!G || G.phase !== "roll" || p !== G.cur || rolling) return;
     rolling = true;
+    closePopup();
     const dice = blocks[p].dice;
-    dice.forEach((d) => d.classList.add("rolling"));
-    const spin = setInterval(() => dice.forEach((d) =>
+    // one token left in a 2-dice game -> only one die rolls
+    const n = (G.cfg.dice === 2 &&
+      G.tokens[p].filter((s) => s !== E.HOME).length === 1) ? 1 : G.cfg.dice;
+    const active = dice.slice(0, n);
+    dice.forEach((d, i) => d.classList.toggle("idle", i >= n));
+    active.forEach((d) => d.classList.add("rolling"));
+    const spin = setInterval(() => active.forEach((d) =>
       (d.dataset.v = 1 + Math.floor(Math.random() * 6))), 70);
     setTimeout(() => {
       clearInterval(spin);
-      dice.forEach((d) => d.classList.remove("rolling"));
+      active.forEach((d) => d.classList.remove("rolling"));
       const res = E.roll(G);
       if (res) res.faces.forEach((f, i) => (dice[i].dataset.v = f));
       rolling = false;
-      autoSelectChip();
-      render();
-      maybeAuto();
+      postAction();
     }, 450);
+  }
+
+  /* central post-action: miss-kill animation first, then render + auto-move */
+  function postAction() {
+    const pen = G.lastPenalty;
+    if (pen && pen.items.length) {
+      G.lastPenalty = null;
+      animatePenalty(pen);
+      return;
+    }
+    render();
+    maybeAuto();
+  }
+
+  function animatePenalty(pen) {
+    const seat = G.seats[pen.p];
+    render();
+    showToast(`💥 ${NAME[seat]} missed a kill — token closed!`);
+    pen.items.forEach(({ t, from }) => {
+      const el = tokenEls[pen.p][t];
+      const [r, c] = from >= 51 ? HOMECOL[seat](from - 51) : PATH[E.cellOf(seat, from)];
+      el.style.top = (r + 0.12) * CELL + "%";
+      el.style.left = (c + 0.12) * CELL + "%";
+      el.classList.add("missed");
+    });
+    setTimeout(() => {
+      pen.items.forEach(({ t }) => tokenEls[pen.p][t].classList.remove("missed"));
+      render();                          // penalized tokens slide home to the yard
+      maybeAuto();
+    }, 1200);
+  }
+
+  let toastTimer = null;
+  function showToast(msg) {
+    let el = document.querySelector("#toast");
+    if (!el) {
+      el = div("toast");
+      el.id = "toast";
+      $("#board").appendChild(el);
+    }
+    el.textContent = msg;
+    el.classList.add("show");
+    clearTimeout(toastTimer);
+    toastTimer = setTimeout(() => el.classList.remove("show"), 2100);
   }
 
   /* auto-run: when only one token can move, play its values automatically */
@@ -221,29 +268,61 @@
       if (ms.length > 1 && only.size > 1) { render(); return; }
       G.log.push(`${NAME[E.curSeat(G)]} auto-moved — only option.`);
       E.move(G, ms[0].t, ms[0].value);
-      autoSelectChip();
-      render();
-      maybeAuto();                                     // chain remaining values
+      postAction();                                    // chains remaining values
     }, 450);
   }
 
-  function autoSelectChip() {
-    selChip = -1;
-    if (!G || G.phase !== "move") return;
-    for (let i = 0; i < G.pool.length; i++) {
-      if (E.movesFor(G, G.pool[i]).length > 0) { selChip = i; return; }
+  /* token-first interaction: tap your token -> popup with its playable values */
+  function legalValuesFor(t) {
+    const vals = [];
+    for (const v of new Set(G.pool)) {
+      if (E.movesFor(G, v).some((m) => m.t === t)) vals.push(v);
     }
+    return vals;
   }
 
   function onToken(p, t) {
-    if (!G || G.phase !== "move" || p !== G.cur || selChip < 0) return;
-    const value = G.pool[selChip];
-    if (!E.movesFor(G, value).some((m) => m.t === t)) return;
-    E.move(G, t, value);
-    autoSelectChip();
-    render();
-    maybeAuto();
+    if (!G || G.phase !== "move" || p !== G.cur || rolling) return;
+    closePopup();
+    const vals = legalValuesFor(t);
+    if (vals.length === 0) return;
+    // yard token (only a 6 opens it) or a single option: act immediately, no popup
+    if (G.tokens[p][t] === -1 || vals.length === 1) {
+      E.move(G, t, vals[0]);
+      postAction();
+      return;
+    }
+    openPopup(p, t, vals);
   }
+
+  let popEl = null;
+  function openPopup(p, t, vals) {
+    closePopup();
+    popEl = div("tokpop");
+    vals.forEach((v) => {
+      const b = document.createElement("button");
+      b.textContent = v;
+      b.addEventListener("click", (e) => {
+        e.stopPropagation();
+        closePopup();
+        if (G.phase === "move" && E.movesFor(G, v).some((m) => m.t === t)) {
+          E.move(G, t, v);
+          postAction();
+        }
+      });
+      popEl.appendChild(b);
+    });
+    const el = tokenEls[p][t];
+    popEl.style.left = el.style.left;
+    popEl.style.top = "calc(" + el.style.top + " - 8.5%)";
+    $("#board").appendChild(popEl);
+  }
+  function closePopup() {
+    if (popEl) { popEl.remove(); popEl = null; }
+  }
+  document.addEventListener("click", (e) => {
+    if (popEl && !popEl.contains(e.target) && !e.target.classList.contains("token")) closePopup();
+  });
 
   /* ---------- render ---------- */
   function render() {
@@ -275,28 +354,25 @@
             : "Waiting…") + (needKill ? " · 🔒 kill to unlock home" : "");
 
       // pool chips only in the active block
+      // pool values are display-only — moves are made by tapping tokens
       bl.pool.innerHTML = "";
       if (isCur && G.phase === "move") {
-        G.pool.forEach((v, i) => {
-          const c = document.createElement("button");
-          c.className = "chip";
+        G.pool.forEach((v) => {
+          const c = div("chip passive");
           c.textContent = v;
           if (E.movesFor(G, v).length === 0) c.classList.add("dead");
-          if (i === selChip) c.classList.add("sel");
-          c.addEventListener("click", () => {
-            if (E.movesFor(G, v).length === 0) return;
-            selChip = i;
-            render();
-          });
           bl.pool.appendChild(c);
         });
       }
     });
 
-    // tokens
-    const movers = new Set(
-      G.phase === "move" && selChip >= 0
-        ? E.movesFor(G, G.pool[selChip]).map((m) => m.t) : []);
+    // tokens — highlight every token that can play any pool value
+    const movers = new Set();
+    if (G.phase === "move") {
+      for (const v of new Set(G.pool)) {
+        E.movesFor(G, v).forEach((m) => movers.add(m.t));
+      }
+    }
     const stack = {};
     G.seats.forEach((s, p) => {
       G.tokens[p].forEach((steps, t) => {
@@ -359,7 +435,6 @@
     if (q.get("demo") && G) {
       G.tokens.forEach((tk, p) => { tk[0] = 3 + p * 5; tk[1] = 30 + p * 3; });
       E.roll(G, () => [6, 4][Math.floor(Math.random() * 2)]);
-      autoSelectChip();
       render();
     }
   }

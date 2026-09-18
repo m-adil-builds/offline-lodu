@@ -21,7 +21,15 @@ python3 -m http.server 8300
   (6,6,6,6) = the whole turn is void.
 - **1-die mode:** a 6 grants an extra roll; three consecutive 6s void the turn.
 - Star squares are safe — no kills there. Killing grants an extra roll.
-- Home needs the exact number.
+- Home needs the exact number. Finishing a token grants an extra roll.
+- **Both dice must be playable (2-dice mode):** if no ordering of the rolled
+  values can be fully played, the turn is void — no cherry-picking one die.
+  The game only offers moves that keep the remaining values playable.
+- **One token left → one die:** a 2-dice player with a single token still in
+  play rolls one die (classic single-die rules apply to it).
+- **Play by token:** tap your token — a popup shows which dice values it can
+  run; pick one. A yard token opens instantly when a 6 is available. Forced
+  moves play automatically.
 - **Custom rule — miss-kill penalty (toggle):** if a token could kill with an
   available dice value and the turn ends without that kill, that token is
   closed (returned to its yard).
