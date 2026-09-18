@@ -43,6 +43,7 @@
   /* ---------- state ---------- */
   let G = null;
   let tokenEls = [];
+  let cellEls = [];           // loop-cell index -> cell element
   let blocks = [];            // per player: {root, dice[], roll, pool, status, home}
   let rolling = false;
 
@@ -100,8 +101,10 @@
       });
     });
     const ENTRY_ROT = [0, 90, 180, 270];   // travel direction out of each start cell
+    cellEls = [];
     PATH.forEach(([r, c], i) => {
       const cell = div("cell");
+      cellEls[i] = cell;
       if (E.SAFE.has(i)) {
         cell.classList.add("safe");
         // the 4 star cells (start + 8) get a bright color-matched highlight
@@ -219,22 +222,69 @@
     maybeAuto();
   }
 
+  function coordAt(seat, s) {
+    return s >= 51 ? HOMECOL[seat](s - 51) : PATH[E.cellOf(seat, s)];
+  }
+  function placeToken(el, r, c) {
+    el.style.top = (r + 0.12) * CELL + "%";
+    el.style.left = (c + 0.12) * CELL + "%";
+  }
+
+  /* miss-kill: blink the missed capture path tile by tile,
+     then walk the guilty token backwards along its route to the yard */
   function animatePenalty(pen) {
     const seat = G.seats[pen.p];
     render();
-    showToast(`💥 ${NAME[seat]} missed a kill — token closed!`);
+    // freeze penalized tokens at their last position
     pen.items.forEach(({ t, from }) => {
       const el = tokenEls[pen.p][t];
-      const [r, c] = from >= 51 ? HOMECOL[seat](from - 51) : PATH[E.cellOf(seat, from)];
-      el.style.top = (r + 0.12) * CELL + "%";
-      el.style.left = (c + 0.12) * CELL + "%";
+      placeToken(el, ...coordAt(seat, from));
       el.classList.add("missed");
     });
+
+    // phase A — light up the tiles of the kill that was skipped
+    let phaseA = 700;
+    pen.items.forEach(({ kill }) => {
+      if (!kill) return;
+      showToast(`💥 ${NAME[seat]} missed the kill by ${kill.value}!`);
+      const steps = [];
+      for (let s = kill.from + 1; s <= kill.to; s++) steps.push(s);
+      steps.forEach((s, i) => {
+        const cell = cellEls[E.cellOf(seat, s)];
+        if (!cell) return;
+        setTimeout(() => {
+          cell.classList.add(s === kill.to ? "blink-target" : "blink");
+          setTimeout(() => cell.classList.remove("blink", "blink-target"), 1600);
+        }, 400 + i * 190);
+      });
+      phaseA = Math.max(phaseA, 400 + steps.length * 190 + 900);
+    });
+
+    // phase B — walk back the way it came, then into the yard slot
     setTimeout(() => {
-      pen.items.forEach(({ t }) => tokenEls[pen.p][t].classList.remove("missed"));
-      render();                          // penalized tokens slide home to the yard
-      maybeAuto();
-    }, 1200);
+      let longest = 0;
+      pen.items.forEach(({ t, from }) => {
+        const el = tokenEls[pen.p][t];
+        const trail = [];
+        for (let s = from - 1; s >= 0; s--) trail.push(coordAt(seat, s));
+        const [yr, yc] = YARD_ORIGIN[seat];
+        const [sr, sc] = YARD_SLOTS[t];
+        trail.push([yr + sr, yc + sc]);
+        const step = Math.max(45, Math.min(130, Math.floor(1700 / trail.length)));
+        el.style.transition = `left ${step}ms linear, top ${step}ms linear`;
+        trail.forEach((rc, i) => setTimeout(() => placeToken(el, rc[0], rc[1]), i * step));
+        longest = Math.max(longest, trail.length * step);
+      });
+      setTimeout(() => {
+        pen.items.forEach(({ t }) => {
+          const el = tokenEls[pen.p][t];
+          el.classList.remove("missed");
+          el.style.transition = "";
+        });
+        render();
+        maybeAuto();
+      }, longest + 300);
+    }, phaseA);
   }
 
   let toastTimer = null;
@@ -436,6 +486,13 @@
       G.tokens.forEach((tk, p) => { tk[0] = 3 + p * 5; tk[1] = 30 + p * 3; });
       E.roll(G, () => [6, 4][Math.floor(Math.random() * 2)]);
       render();
+    }
+    if (q.get("misskill") && G) {        // penalty animation demo (1 die, 2 players)
+      G.tokens[0] = [1, 20, -1, -1];
+      G.tokens[1] = [29, -1, -1, -1];
+      E.roll(G, () => 2);
+      E.move(G, 1, 2);                   // ignores the kill at cell 3
+      postAction();
     }
   }
 })();

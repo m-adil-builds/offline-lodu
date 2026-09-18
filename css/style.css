@@ -297,6 +297,22 @@ body {
 .tokpop button:hover { border-color: var(--green); color: var(--green); }
 
 /* miss-kill feedback */
+.cell.blink {
+  background: rgba(225, 91, 91, 0.42) !important;
+  box-shadow: inset 0 0 0 2px var(--red), 0 0 14px rgba(225, 91, 91, 0.75) !important;
+  animation: tilePulse .45s ease-in-out infinite alternate;
+  z-index: 2;
+}
+.cell.blink-target {
+  background: rgba(225, 91, 91, 0.68) !important;
+  box-shadow: inset 0 0 0 3px #fff, 0 0 24px var(--red) !important;
+  animation: tilePulse .3s ease-in-out infinite alternate;
+  z-index: 2;
+}
+@keyframes tilePulse {
+  from { filter: brightness(1); }
+  to   { filter: brightness(1.65); }
+}
 .token.missed {
   animation: missShake .5s ease-in-out 2;
   box-shadow: 0 0 0 3px var(--red), 0 0 24px var(--red) !important;

@@ -255,7 +255,10 @@
   function recordKillChances(g) {          // custom rule 1 bookkeeping
     if (!g.cfg.rule1) return;
     for (const m of allMoves(g)) {
-      if (m.capture && !g.missKillers.includes(m.t)) g.missKillers.push(m.t);
+      if (m.capture && !g.missKillers.some((k) => k.t === m.t)) {
+        // remember the missed chance itself: start, target and dice value
+        g.missKillers.push({ t: m.t, from: m.from, to: m.to, value: m.value });
+      }
     }
   }
 
@@ -288,7 +291,7 @@
         g.hasKill[g.cur] = true;
         say(g, `${colorOf(g)} earned home entry with that kill.`);
       }
-      g.missKillers = g.missKillers.filter((t) => t !== tokenIdx); // it killed
+      g.missKillers = g.missKillers.filter((k) => k.t !== tokenIdx); // it killed
       g.extraOwed++;                       // kill = extra roll
       say(g, `${colorOf(g)} gets an extra roll for the kill.`);
     }
@@ -326,11 +329,11 @@
     g.lastPenalty = null;
     if (g.cfg.rule1 && g.missKillers.length) {
       const items = [];
-      for (const t of g.missKillers) {
-        const s = g.tokens[g.cur][t];
+      for (const k of g.missKillers) {
+        const s = g.tokens[g.cur][k.t];
         if (s >= 0 && s < HOME) {
-          items.push({ t, from: s });
-          g.tokens[g.cur][t] = -1;
+          items.push({ t: k.t, from: s, kill: k });
+          g.tokens[g.cur][k.t] = -1;
           say(g, `Penalty: ${colorOf(g)}'s token closed — it missed a kill.`);
         }
       }
