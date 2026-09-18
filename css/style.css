@@ -352,6 +352,20 @@ body {
 .rule.off { opacity: .45; pointer-events: none; }
 .rule-text i { color: var(--muted); font-style: normal; font-size: 12px; }
 
+/* sound toggle — top-left corner of the playing screen */
+.sound-btn {
+  position: fixed; top: 14px; left: 14px; z-index: 15;
+  width: 44px; height: 44px; border-radius: 50%; cursor: pointer;
+  font-size: 19px; line-height: 1;
+  background: var(--panel); color: var(--ink);
+  border: 1px solid var(--border);
+  box-shadow: 0 4px 14px rgba(0, 0, 0, 0.5);
+}
+.sound-btn.on {
+  border-color: var(--green);
+  box-shadow: 0 0 0 1px var(--green), 0 0 16px rgba(61, 220, 151, 0.35);
+}
+
 @media (max-width: 560px) {
   .pblock { padding: 9px 10px; }
   .pb-name { font-size: 13px; }

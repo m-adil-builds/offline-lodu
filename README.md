@@ -35,6 +35,14 @@ python3 -m http.server 8300
   closed (returned to its yard).
 - **Custom rule — no undo (always on):** a move is final once made.
 
+## Sounds
+
+Optional. Drop 5 files named `1.mp3` … `5.mp3` into each of:
+`sounds/kill/` (capture), `sounds/open/` (token opened),
+`sounds/miss/` (miss-kill penalty). One is picked at random per event.
+Toggle with the speaker button in the top-left corner — sound is OFF by
+default.
+
 ## Structure
 
 ```

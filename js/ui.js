@@ -44,6 +44,33 @@
   let G = null;
   let tokenEls = [];
   let cellEls = [];           // loop-cell index -> cell element
+
+  /* ---------- sound effects (default OFF) ----------
+     sounds/<kind>/1.mp3 … 5.mp3 — one picked at random per event */
+  let soundOn = false;
+  function playSound(kind) {
+    if (!soundOn) return;
+    const n = 1 + Math.floor(Math.random() * 5);
+    const a = new Audio(`sounds/${kind}/${n}.mp3`);
+    a.volume = 0.8;
+    a.play().catch(() => {});          // missing file / autoplay block: stay silent
+  }
+  const soundBtn = document.querySelector("#btn-sound");
+  soundBtn.addEventListener("click", () => {
+    soundOn = !soundOn;
+    soundBtn.textContent = soundOn ? "🔊" : "🔇";
+    soundBtn.classList.toggle("on", soundOn);
+  });
+
+  /* every move goes through here so sounds fire in one place */
+  function doMove(t, v) {
+    const ev = E.move(G, t, v);
+    if (ev) {
+      if (ev.captured.length) playSound("kill");
+      else if (ev.open) playSound("open");
+    }
+    postAction();
+  }
   let blocks = [];            // per player: {root, dice[], roll, pool, status, home}
   let rolling = false;
 
@@ -234,6 +261,7 @@
      then walk the guilty token backwards along its route to the yard */
   function animatePenalty(pen) {
     const seat = G.seats[pen.p];
+    playSound("miss");
     render();
     // freeze penalized tokens at their last position
     pen.items.forEach(({ t, from }) => {
@@ -321,8 +349,7 @@
       const m = forcedMove(E.allMoves(G));
       if (!m) { render(); return; }
       G.log.push(`${NAME[E.curSeat(G)]} auto-moved — only option.`);
-      E.move(G, m.t, m.value);
-      postAction();                                    // chains remaining values
+      doMove(m.t, m.value);                            // chains remaining values
     }, 450);
   }
 
@@ -342,8 +369,7 @@
     if (vals.length === 0) return;
     // yard token (only a 6 opens it) or a single option: act immediately, no popup
     if (G.tokens[p][t] === -1 || vals.length === 1) {
-      E.move(G, t, vals[0]);
-      postAction();
+      doMove(t, vals[0]);
       return;
     }
     openPopup(p, t, vals);
@@ -360,8 +386,7 @@
         e.stopPropagation();
         closePopup();
         if (G.phase === "move" && E.movesFor(G, v).some((m) => m.t === t)) {
-          E.move(G, t, v);
-          postAction();
+          doMove(t, v);
         }
       });
       popEl.appendChild(b);
