@@ -301,23 +301,27 @@
     toastTimer = setTimeout(() => el.classList.remove("show"), 2100);
   }
 
-  /* auto-run: when only one token can move, play its values automatically */
+  /* auto-run: when only one token can move, play its values automatically.
+     Exception: a kill on the table with any alternative — the user decides,
+     otherwise auto could skip the kill and trigger the miss-kill penalty. */
+  function forcedMove(ms) {
+    if (ms.length === 0) return null;
+    if (ms.length === 1) return ms[0];                 // truly forced (kill or not)
+    if (new Set(ms.map((m) => m.t)).size > 1) return null;  // several tokens — user plays
+    if (ms.some((m) => m.capture)) return null;        // kill available — user plays
+    return ms[0];                                      // one token, no kill at stake
+  }
   let autoTimer = null;
   function maybeAuto() {
     if (!G || G.phase !== "move") return;
-    const moves = E.allMoves(G);
-    if (moves.length === 0) return;
-    const tokens = new Set(moves.map((m) => m.t));
-    if (moves.length > 1 && tokens.size > 1) return;   // real choice — user plays
+    if (!forcedMove(E.allMoves(G))) return;
     clearTimeout(autoTimer);
     autoTimer = setTimeout(() => {
       if (!G || G.phase !== "move") return;
-      const ms = E.allMoves(G);
-      if (ms.length === 0) return;
-      const only = new Set(ms.map((m) => m.t));
-      if (ms.length > 1 && only.size > 1) { render(); return; }
+      const m = forcedMove(E.allMoves(G));
+      if (!m) { render(); return; }
       G.log.push(`${NAME[E.curSeat(G)]} auto-moved — only option.`);
-      E.move(G, ms[0].t, ms[0].value);
+      E.move(G, m.t, m.value);
       postAction();                                    // chains remaining values
     }, 450);
   }
